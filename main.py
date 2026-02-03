@@ -1,2 +1,5 @@
+import create_dataset
 
-#just a placeholder
+if __name__ == '__main__':
+    urban_dictionary = create_dataset.load_urban_dataset()
+    print(urban_dictionary.shape)
