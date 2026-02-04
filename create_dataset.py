@@ -13,4 +13,8 @@ def load_urban_dataset():
             if f.endswith('.csv') and f.startswith('urban_data'):
                 file_paths.append(os.path.join(root, f))
     df_urban = pd.concat([pd.read_csv(f, names=COL_NAMES) for f in file_paths])
+
+    df_nulls = df_urban[(df_urban.isnull().any(axis=1)) | (df_urban.isna().any(axis=1))]
+    df_urban = df_urban.drop(df_nulls.index)
+
     return df_urban
