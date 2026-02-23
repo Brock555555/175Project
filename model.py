@@ -77,7 +77,7 @@ class IdiomaticExpressionModel:
         ]
         return tokenized
 
-    def train(self, dataset, batch_size = 32, LR = 2e-5, epochs = 5, retrain=False):
+    def train(self, dataset, batch_size = 16, LR = 2e-5, epochs = 3, retrain=False):
         if self.is_trained and not retrain:
             print("Model already trained. Use retrain=False in train() to force more training or delete the output directory")
             return
@@ -101,7 +101,7 @@ class IdiomaticExpressionModel:
                 output_dir = "./gemma_lora_checkpoints",
                 per_device_train_batch_size=batch_size,
                 num_train_epochs = epochs,
-                gradient_accumulation_steps=1,
+                gradient_accumulation_steps=2,
                 warmup_steps=2,
                 max_steps=-1,
                 learning_rate=LR,
