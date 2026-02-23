@@ -9,5 +9,5 @@ if __name__ == "__main__":
 
     prompts = ["to make a mistake", "to die", "to date someone", "to drink alcohol"]
     for prompt in prompts:
-        output = model.generate_idiom(f"Generate an idiom that means \"{prompt}\"")
+        output = model.generate_idiom(f"{prompt}")
         print(f"For definition {prompt}, the generated idiom was \"{output}\"")

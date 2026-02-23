@@ -12,7 +12,7 @@ import transformers
 from peft import LoraConfig, get_peft_model, PeftModel
 from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
-from trl import SFTTrainer
+from trl import SFTTrainer, SFTConfig
 from datasets import Dataset
 
 
@@ -38,14 +38,16 @@ class IdiomaticExpressionModel:
 
 
         gemma_base = AutoModelForCausalLM.from_pretrained(MODEL_NAME).to(DEVICE)
+        gemma_base.resize_token_embeddings(len(self.tokenizer))
 
         lora_config = LoraConfig(
-            r = 8,
-            lora_alpha = 16,
-            target_modules = ["q_proj", "v_proj"],
+            r = 16,
+            lora_alpha = 32,
+            target_modules = ["q_proj", "o_proj", "k_proj", "v_proj", "gate_proj", "up_proj", "down_proj"],
             lora_dropout = 0.05,
             bias = "none",
-            task_type = "CAUSAL_LM"
+            task_type = "CAUSAL_LM",
+            modules_to_save = ["embed_tokens", "lm_head"]
         )
 
         if not os.path.exists(SAVE_PATH):
@@ -59,7 +61,9 @@ class IdiomaticExpressionModel:
             gemma.eval()
             self.gemma = gemma
 
-    def train(self, dataset, batch_size = 16, LR = 2e-5, epochs = 3, retrain=False):
+
+
+    def train(self, dataset, batch_size = 16, LR = 2e-5, epochs = 5, retrain=False):
         if self.is_trained and not retrain:
             print("Model already trained. Use retrain=False in train() to force more training or delete the output directory")
             return
@@ -68,13 +72,20 @@ class IdiomaticExpressionModel:
         dataset = Dataset.from_list(dataset)
 
         def tokenize_function(data):
-            return self.tokenizer(
+            tokenized =  self.tokenizer(
                 data["text"],
                 padding = "max_length",
                 truncation = True,
-                max_length = 64,
+                max_length = 450,
                 return_token_type_ids = True
             )
+
+            # please stop predicting padding tyvm
+            tokenized["labels"] = [
+                [(l if l != self.tokenizer.pad_token_id else -100) for l in label]
+                for label in tokenized["input_ids"]
+            ]
+            return tokenized
 
         tokenized_dataset = dataset.map(
             tokenize_function,
@@ -86,22 +97,20 @@ class IdiomaticExpressionModel:
         trainer = SFTTrainer(
             model = self.gemma,
             train_dataset = tokenized_dataset,
-            args=transformers.TrainingArguments(
+            args=SFTConfig(
+                output_dir = "./gemma_lora_checkpoints",
                 per_device_train_batch_size=batch_size,
                 num_train_epochs = epochs,
                 gradient_accumulation_steps=4,
                 warmup_steps=2,
-                max_steps=10,
+                max_steps=-1,
                 learning_rate=LR,
                 logging_steps = 1,
-                output_dir = "./gemma_lora_checkpoints",
                 optim="adamw_torch_fused",
                 dataloader_drop_last=True,
                 disable_tqdm = False,
-                remove_unused_columns = False
-                # fsdp = "full_shard",
-                # fsdp_config=fsdp_config
-                # I'll work on implementing FSDP later
+                remove_unused_columns = False,
+                packing=False
             ),
             data_collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)
         )
@@ -114,34 +123,28 @@ class IdiomaticExpressionModel:
         self.is_trained = True
 
 
-    def generate_idiom(self, instruction):
-        message = [
-            {"role": "system", "content": "Your job is to generate novel idiomatic expressions. No conversational filler or special formatting."},
-            {"role": "user", "content": instruction},
-            {"role": "assistant", "content": "A idiom that fits that definition would be:"}
-        ]
+    def generate_idiom(self, definition):
 
-        inputs = self.tokenizer.apply_chat_template(
-            message,
+        prompt = f"[DEF] {definition} [IDM]"
+
+        inputs = self.tokenizer(
+            prompt,
             tokenize=True,
-            add_generation_prompt=True,
             return_tensors="pt",
             return_token_type_ids=True,
-            return_dict = True
         ).to(DEVICE)
 
-        # not sure why these are missing, but this does fix the issue
-        if "token_type_ids" not in inputs:
-            inputs["token_type_ids"] = torch.zeros_like(inputs["input_ids"])
 
         with torch.no_grad():
             outputs = self.gemma.generate(
                 **inputs,
-                max_new_tokens = 64,
+                min_new_tokens = 3,
+                max_new_tokens = 32,
                 do_sample=True,
-                temperature=1.1,
-                top_p=0.97,
-                use_cache=True
+                temperature=0.9,
+                top_p=0.9,
+                eos_token_id = self.tokenizer.eos_token_id,
+                pad_token_id = self.tokenizer.pad_token_id,
             )
 
         response = outputs[0][inputs["input_ids"].shape[-1]:]

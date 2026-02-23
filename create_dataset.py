@@ -30,7 +30,7 @@ def prepare_dataset(df, min_definition=5, max_definition=300, min_word=2, max_wo
     df = df[df["word"].str.len() < max_word]
 
     texts = [
-        f"[DEF] {definition} [IDM] {word}"
+        f"[DEF] {definition} [IDM] {word} [EOS]"
         for definition, word in zip(df["definition"], df["word"])
     ]
 
