@@ -3,7 +3,7 @@ from create_dataset import load_urban_dataset, prepare_dataset
 
 if __name__ == "__main__":
     model = IdiomaticExpressionModel()
-    ud_dataset = prepare_dataset(load_urban_dataset().sample(frac=1))
+    ud_dataset = prepare_dataset(load_urban_dataset().sample(n=30000))
 
     model.train(ud_dataset)
 

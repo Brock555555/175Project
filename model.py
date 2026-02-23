@@ -61,9 +61,23 @@ class IdiomaticExpressionModel:
             gemma.eval()
             self.gemma = gemma
 
+    def tokenize_function(self, data):
+        tokenized = self.tokenizer(
+            data["text"],
+            padding = "max_length",
+            truncation = True,
+            max_length = 64,
+            return_token_type_ids = True
+        )
 
+        # please stop predicting padding tyvm
+        tokenized["labels"] = [
+            [(l if l != self.tokenizer.pad_token_id else -100) for l in label]
+            for label in tokenized["input_ids"]
+        ]
+        return tokenized
 
-    def train(self, dataset, batch_size = 16, LR = 2e-5, epochs = 5, retrain=False):
+    def train(self, dataset, batch_size = 32, LR = 2e-5, epochs = 5, retrain=False):
         if self.is_trained and not retrain:
             print("Model already trained. Use retrain=False in train() to force more training or delete the output directory")
             return
@@ -71,24 +85,10 @@ class IdiomaticExpressionModel:
         print(f"Using device {DEVICE}")
         dataset = Dataset.from_list(dataset)
 
-        def tokenize_function(data):
-            tokenized =  self.tokenizer(
-                data["text"],
-                padding = "max_length",
-                truncation = True,
-                max_length = 450,
-                return_token_type_ids = True
-            )
 
-            # please stop predicting padding tyvm
-            tokenized["labels"] = [
-                [(l if l != self.tokenizer.pad_token_id else -100) for l in label]
-                for label in tokenized["input_ids"]
-            ]
-            return tokenized
 
         tokenized_dataset = dataset.map(
-            tokenize_function,
+            self.tokenize_function,
             batched = True,
             remove_columns = dataset.column_names,
             load_from_cache_file = False
@@ -101,7 +101,7 @@ class IdiomaticExpressionModel:
                 output_dir = "./gemma_lora_checkpoints",
                 per_device_train_batch_size=batch_size,
                 num_train_epochs = epochs,
-                gradient_accumulation_steps=4,
+                gradient_accumulation_steps=1,
                 warmup_steps=2,
                 max_steps=-1,
                 learning_rate=LR,
