@@ -36,7 +36,6 @@ class IdiomaticExpressionModel:
         self.tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
         self.tokenizer.add_special_tokens({"additional_special_tokens": ["[DEF]", "[IDM]"]})
 
-
         gemma_base = AutoModelForCausalLM.from_pretrained(MODEL_NAME).to(DEVICE)
         gemma_base.resize_token_embeddings(len(self.tokenizer))
 
@@ -61,23 +60,15 @@ class IdiomaticExpressionModel:
             gemma.eval()
             self.gemma = gemma
 
-    def tokenize_function(self, data):
-        tokenized = self.tokenizer(
-            data["text"],
-            padding = "max_length",
-            truncation = True,
-            max_length = 64,
-            return_token_type_ids = True
-        )
+        self.tokenizer.eos_token_id = 1
+        self.gemma.config.eos_token_id = 1
+        self.gemma.generation_config.eos_token_id = 1
+        self.tokenizer.padding_side = "right"
 
-        # please stop predicting padding tyvm
-        tokenized["labels"] = [
-            [(l if l != self.tokenizer.pad_token_id else -100) for l in label]
-            for label in tokenized["input_ids"]
-        ]
-        return tokenized
 
-    def train(self, dataset, batch_size = 16, LR = 2e-5, epochs = 3, retrain=False):
+
+
+    def train(self, dataset, retrain=False, resume_from_checkpoint=False):
         if self.is_trained and not retrain:
             print("Model already trained. Use retrain=False in train() to force more training or delete the output directory")
             return
@@ -85,13 +76,13 @@ class IdiomaticExpressionModel:
         print(f"Using device {DEVICE}")
         dataset = Dataset.from_list(dataset)
 
-
-
         tokenized_dataset = dataset.map(
-            self.tokenize_function,
+            tokenize_function,
+            fn_kwargs = {"tokenizer": self.tokenizer},
             batched = True,
             remove_columns = dataset.column_names,
-            load_from_cache_file = False
+            load_from_cache_file = False,
+            cache_file_name="./tokenized_dataset.arrow"
         )
 
         trainer = SFTTrainer(
@@ -99,24 +90,31 @@ class IdiomaticExpressionModel:
             train_dataset = tokenized_dataset,
             args=SFTConfig(
                 output_dir = "./gemma_lora_checkpoints",
-                per_device_train_batch_size=batch_size,
-                num_train_epochs = epochs,
-                gradient_accumulation_steps=2,
-                warmup_steps=2,
-                max_steps=-1,
-                learning_rate=LR,
-                logging_steps = 1,
-                optim="adamw_torch_fused",
-                dataloader_drop_last=True,
+
+                per_device_train_batch_size = 16,
+                gradient_accumulation_steps = 4,
+                gradient_checkpointing = True,
+                bf16=True,
+
+                learning_rate = 2e-5,
+                num_train_epochs = 3,
+                warmup_steps = 100,
+                lr_scheduler_type="constant_with_warmup",
+                optim = "adamw_torch_fused",
+
+                logging_steps = 10,
+                dataloader_num_workers = 4,
                 disable_tqdm = False,
+
+                max_length = 64,
                 remove_unused_columns = False,
-                packing=False
+                packing=False,
+                push_to_hub=False
             ),
             data_collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)
         )
 
-
-        trainer.train()
+        trainer.train(resume_from_checkpoint=resume_from_checkpoint)
         trainer.save_model("./gemma_lora")
         self.tokenizer.save_pretrained("./gemma_lora")
         print("Training Complete")
@@ -129,7 +127,7 @@ class IdiomaticExpressionModel:
 
         inputs = self.tokenizer(
             prompt,
-            tokenize=True,
+            add_special_tokens=True,
             return_tensors="pt",
             return_token_type_ids=True,
         ).to(DEVICE)
@@ -138,11 +136,12 @@ class IdiomaticExpressionModel:
         with torch.no_grad():
             outputs = self.gemma.generate(
                 **inputs,
-                min_new_tokens = 3,
+                min_new_tokens = 2,
                 max_new_tokens = 32,
                 do_sample=True,
-                temperature=0.9,
+                temperature=0.7,
                 top_p=0.9,
+                repetition_penalty=1.2,
                 eos_token_id = self.tokenizer.eos_token_id,
                 pad_token_id = self.tokenizer.pad_token_id,
             )
@@ -151,3 +150,20 @@ class IdiomaticExpressionModel:
         decoded = self.tokenizer.decode(response, skip_special_tokens=True)
 
         return decoded
+
+
+
+def tokenize_function(data, tokenizer):
+    text = [t + tokenizer.eos_token for t in data["text"]]
+
+    tokenized = tokenizer(
+        text,
+        padding = "max_length",
+        truncation = True,
+        max_length = 64,
+        return_token_type_ids = True,
+        add_special_tokens = True
+    )
+    return tokenized
+
+

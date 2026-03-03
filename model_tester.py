@@ -5,7 +5,10 @@ if __name__ == "__main__":
     model = IdiomaticExpressionModel()
     ud_dataset = prepare_dataset(load_urban_dataset().sample(n=30000))
 
-    model.train(ud_dataset)
+    model.train(ud_dataset, resume_from_checkpoint = False)
+
+    # model.check_eos_token()
+    # model.check_eos_function()
 
     prompts = ["to make a mistake", "to die", "to date someone", "to drink alcohol"]
     for prompt in prompts:
