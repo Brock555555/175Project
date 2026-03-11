@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
+from datasets import Dataset
 
 DATA_DIR = os.path.join(os.pardir, '175Project')
 
@@ -18,3 +19,19 @@ def load_urban_dataset():
     df_urban = df_urban.drop(df_nulls.index)
 
     return df_urban
+
+def prepare_dataset(df, min_definition=5, max_definition=300, min_word=2, max_word=150):
+    # enforce definition sizes
+    df = df[df["definition"].str.len() > min_definition]
+    df = df[df["definition"].str.len() < max_definition]
+
+    # enforce word sizes
+    df = df[df["word"].str.len() > min_word]
+    df = df[df["word"].str.len() < max_word]
+
+    texts = [
+        f"[DEF] {definition} [IDM] {word} [EOS]"
+        for definition, word in zip(df["definition"], df["word"])
+    ]
+
+    return Dataset.from_dict({"text": texts})
