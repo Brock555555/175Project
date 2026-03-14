@@ -20,15 +20,20 @@ def load_urban_dataset():
 
     return df_urban
 
-def prepare_dataset(df, min_definition=5, max_definition=300, min_word=2, max_word=150):
+def prepare_dataset(df, min_definition=2, max_definition=300, min_word=2, max_word=20):
     # enforce definition sizes
-    df = df[df["definition"].str.len() > min_definition]
-    df = df[df["definition"].str.len() < max_definition]
+    #df = df[df["definition"].str.len() > min_definition]
+    #df = df[df["definition"].str.len() < max_definition]
 
     # enforce word sizes
-    df = df[df["word"].str.len() > min_word]
-    df = df[df["word"].str.len() < max_word]
+    #df = df[df["word"].str.len() > min_word]
+    #df = df[df["word"].str.len() < max_word]
 
     texts = [f"[DEF] {definition} [IDM] {word}" for definition, word in zip(df["definition"], df["word"])]
 
     return Dataset.from_dict({"text": texts})
+
+def load_idem_dataset():
+    df = pd.read_csv("idiom_lexicon.csv", usecols = ["Idiom", "definition"])
+    df = df.rename(columns = {"Idiom": "word"})
+    return df

@@ -18,7 +18,7 @@ from datasets import Dataset
 
 MODEL_NAME = "google/gemma-3-4b-it"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-SAVE_PATH = "./gemma_lora"
+SAVE_PATH = "./gemma_lora_copy"
 
 fsdp_config = {
     "fsdp_transformer_layer_cls_to_wrap": ["GemmaDecoderLayer"],
@@ -82,7 +82,8 @@ class IdiomaticExpressionModel:
             batched = True,
             remove_columns = dataset.column_names,
             load_from_cache_file = False,
-            cache_file_name="./tokenized_dataset.arrow"
+            keep_in_memory = True
+            # cache_file_name="./tokenized_dataset.arrow"
         )
 
         trainer = SFTTrainer(
@@ -96,14 +97,14 @@ class IdiomaticExpressionModel:
                 gradient_checkpointing = True,
                 bf16=True,
 
-                learning_rate = 2e-5,
-                num_train_epochs = 3,
-                warmup_steps = 100,
-                lr_scheduler_type="constant_with_warmup",
+                learning_rate = 1e-5,
+                num_train_epochs = 10,
+                warmup_steps = 50,
+                lr_scheduler_type="cosine",
                 optim = "adamw_torch_fused",
 
                 logging_steps = 10,
-                dataloader_num_workers = 4,
+                dataloader_num_workers = 0,
                 disable_tqdm = False,
 
                 max_length = 64,
@@ -122,8 +123,16 @@ class IdiomaticExpressionModel:
 
 
     def generate_idiom(self, definition):
+        few_shot = (
+            "[DEF] to waste potential [IDM] let the candle burn idle\n"
+            "[DEF] to be ignored [IDM] converse with the wallflowers\n"
+            "[DEF] to use an excessively strong tool [IDM] mow grass with a chainsaw\n"
+            "[DEF] to overthink a problem [IDM] to find ghosts amidst shadows\n"
+            "[DEF] to drive a conversation into uncomfortable subjects [IDM] to make a minefield of a molehill\n"
+        )
+        instruction = "Generate a novel, creative idiom for the given prompts, avoid common expressions\n\n"
 
-        prompt = f"[DEF] {definition} [IDM]"
+        prompt = instruction + few_shot + f"[DEF] {definition} [IDM]"
 
         inputs = self.tokenizer(
             prompt,
@@ -137,11 +146,13 @@ class IdiomaticExpressionModel:
             outputs = self.gemma.generate(
                 **inputs,
                 min_new_tokens = 2,
-                max_new_tokens = 32,
+                max_new_tokens = 20,
                 do_sample=True,
-                temperature=0.7,
+                temperature=1.5,
+                top_k=50,
                 top_p=0.9,
-                repetition_penalty=1.2,
+                repetition_penalty=1.8,
+                no_repeat_ngram_size = 3,
                 eos_token_id = self.tokenizer.eos_token_id,
                 pad_token_id = self.tokenizer.pad_token_id,
             )
