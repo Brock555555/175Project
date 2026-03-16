@@ -3,7 +3,7 @@ from create_dataset import load_urban_dataset, prepare_dataset, load_idem_datase
 import json
 
 def load_definitions():
-    with open("idiom_defs.json", "r") as f:
+    with open("../data/idiom_defs.json", "r") as f:
         data = json.load(f)
 
     definitions = [item["definition"] for item in data["idioms"]]

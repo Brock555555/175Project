@@ -18,7 +18,7 @@ from datasets import Dataset
 
 MODEL_NAME = "google/gemma-3-4b-it"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-SAVE_PATH = "./gemma_lora_copy"
+SAVE_PATH = "../gemma_lora_copy"
 
 
 class IdiomaticExpressionModel:
@@ -49,7 +49,7 @@ class IdiomaticExpressionModel:
             self.gemma = gemma
         else:
             self.is_trained = True
-            gemma = PeftModel.from_pretrained(gemma_base, "./gemma_lora").to(DEVICE)
+            gemma = PeftModel.from_pretrained(gemma_base, SAVE_PATH).to(DEVICE)
             gemma.eval()
             self.gemma = gemma
 
@@ -79,7 +79,7 @@ class IdiomaticExpressionModel:
             model = self.gemma,
             train_dataset = tokenized_dataset,
             args=SFTConfig(
-                output_dir = "./gemma_lora_checkpoints",
+                output_dir = "../gemma_lora_checkpoints",
 
                 per_device_train_batch_size = 16,
                 gradient_accumulation_steps = 4,
@@ -151,6 +151,9 @@ class IdiomaticExpressionModel:
 
         return decoded
 
+    def upload(self):
+        merged = self.gemma.merge_and_unload()
+        merged.push_to_hub("Notme2222/175ProjectIdiomaticExpressionGenerator")
 
 
 def tokenize_function(data, tokenizer):

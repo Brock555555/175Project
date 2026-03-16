@@ -34,6 +34,6 @@ def prepare_dataset(df, min_definition=2, max_definition=300, min_word=2, max_wo
     return Dataset.from_dict({"text": texts})
 
 def load_idem_dataset():
-    df = pd.read_csv("idiom_lexicon.csv", usecols = ["Idiom", "definition"])
+    df = pd.read_csv("../data/idiom_lexicon.csv", usecols = ["Idiom", "definition"])
     df = df.rename(columns = {"Idiom": "word"})
     return df
