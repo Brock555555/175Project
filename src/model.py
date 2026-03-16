@@ -1,24 +1,17 @@
 import os
-
-import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
-
-from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM, \
-    DataCollatorForLanguageModeling
-import transformers
+from torch.utils.data import Dataset
+from transformers import AutoTokenizer, AutoModelForCausalLM, DataCollatorForLanguageModeling
 from peft import LoraConfig, get_peft_model, PeftModel
-from sentence_transformers import SentenceTransformer
-from tqdm import tqdm
+from huggingface_hub import upload_folder
+
 from trl import SFTTrainer, SFTConfig
 from datasets import Dataset
 
 
 MODEL_NAME = "google/gemma-3-4b-it"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-SAVE_PATH = "../gemma_lora_copy"
+SAVE_PATH = "gemma_lora"
 
 
 class IdiomaticExpressionModel:
@@ -151,9 +144,18 @@ class IdiomaticExpressionModel:
 
         return decoded
 
+
+
     def upload(self):
         merged = self.gemma.merge_and_unload()
-        merged.push_to_hub("Notme2222/175ProjectIdiomaticExpressionGenerator")
+
+        merged.save_pretrained("merged_model")
+        self.tokenizer.save_pretrained("merged_model")
+
+        upload_folder(
+            repo_id = "Notme2222/175ProjectIdiomaticExpressionGenerator",
+            folder_path = "merged_model"
+        )
 
 
 def tokenize_function(data, tokenizer):
