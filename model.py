@@ -20,13 +20,6 @@ MODEL_NAME = "google/gemma-3-4b-it"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 SAVE_PATH = "./gemma_lora_copy"
 
-fsdp_config = {
-    "fsdp_transformer_layer_cls_to_wrap": ["GemmaDecoderLayer"],
-    "xla": True,
-    "xla_fsdp_v2": True,
-    "xla_fsdp_grad_ckpt": True
-}
-
 
 class IdiomaticExpressionModel:
     def __init__(self, embed_dimensions=384, prefix_length=10):
@@ -65,9 +58,6 @@ class IdiomaticExpressionModel:
         self.gemma.generation_config.eos_token_id = 1
         self.tokenizer.padding_side = "right"
 
-
-
-
     def train(self, dataset, retrain=False, resume_from_checkpoint=False):
         if self.is_trained and not retrain:
             print("Model already trained. Use retrain=False in train() to force more training or delete the output directory")
@@ -83,7 +73,6 @@ class IdiomaticExpressionModel:
             remove_columns = dataset.column_names,
             load_from_cache_file = False,
             keep_in_memory = True
-            # cache_file_name="./tokenized_dataset.arrow"
         )
 
         trainer = SFTTrainer(
