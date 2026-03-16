@@ -8,9 +8,16 @@ Sourced code:
   
 Written code:
   Everything is written from scratch and located in the /src folder.
+  
   Evaluation.ipynb: 
+  
   Summary.ipynb:
+  
   create_dataset.py:
+  
   main.py:
+  
   model.py:
+  
   model_tester.py:
+  
